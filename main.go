@@ -87,17 +87,14 @@ func Vxlan(){
     }
 }
 */
+
 func createPacket(variables ...string) []byte {
-    fmt.Print(variables, " ")
+    //fmt.Print(variables, " ")
     // variable declaration 
     var sipaddr []byte
     var dipaddr []byte
-    //var ptype string
     var protocol layers.IPProtocol
-    //var sport gopacket.LayerType
-    //var dport gopacket.LayerType
     var mpls *layers.MPLS
-    //var pcap string
     var payload gopacket.SerializableLayer
     var buffer gopacket.SerializeBuffer
     var str string
@@ -126,7 +123,6 @@ func createPacket(variables ...string) []byte {
             icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(8), Id: 1, Seq: 1}
             //protocol = layers.IPProtocolICMPv4 // fix this!!
         } else if variables[2] == "udp" {
-            fmt.Printf("entered here!!!")
             if variables[3] != " " && variables[4] != " " {
                 source,_ := strconv.Atoi(variables[3])
                 dest,_ := strconv.Atoi(variables[4])
@@ -152,14 +148,8 @@ func createPacket(variables ...string) []byte {
     // optional params begin here onwards 
     // mpls [5] 
     if variables[5] != " " {
-        /*
-        mpls := &layers.MPLS{
-            Label:        uint(variables[7]),
-            TrafficClass: 0,
-            StackBottom:  true, 
-            TTL:          64,
-        }*/
-        mpls = Mpls(10, true)
+        val,_ := strconv.Atoi(variables[5])
+        mpls = Mpls(uint32(val), true)
     } 
     // payload [6]
     if variables[6] != " " {
@@ -185,7 +175,8 @@ func createPacket(variables ...string) []byte {
     }
 
     //pcap [9] generate pcap if argument exists
-    // create IP
+
+    // create Packet
     /* 
     if UDP: eth, ip, udp, payload
     if TCP: eth, ip, tcp, payload
@@ -195,6 +186,8 @@ func createPacket(variables ...string) []byte {
     if gre: eth, ip, gre, inner ip
     if vxlan: 
     */ 
+
+    // mpls and udp
     if variables[5] != " " && variables[2] == "udp" {
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
@@ -208,9 +201,7 @@ func createPacket(variables ...string) []byte {
             eth, mpls, ip, udp, payload); err != nil {
             return nil
             }
-        str = hex.EncodeToString(buffer.Bytes())
-        fmt.Printf(str)
-        return buffer.Bytes()
+    // mpls and tcp
     } else if variables[5] != " " && variables[2] == "tcp"{
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
@@ -223,9 +214,7 @@ func createPacket(variables ...string) []byte {
             eth, mpls, ip, tcp, payload); err != nil {
             return nil
             }
-        str = hex.EncodeToString(buffer.Bytes())
-        fmt.Printf(str)
-        return buffer.Bytes()
+    // no mpls and udp 
     } else if variables[5] == " " && variables[2] == "udp" {
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
@@ -238,9 +227,7 @@ func createPacket(variables ...string) []byte {
             eth, ip, udp, payload); err != nil {
             return nil
             }
-        str = hex.EncodeToString(buffer.Bytes())
-        fmt.Printf(str)
-        return buffer.Bytes()
+    // no mpls and tcp
     } else if variables[5] == " " && variables[2] == "tcp"{
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
@@ -253,9 +240,7 @@ func createPacket(variables ...string) []byte {
             eth, mpls, ip, tcp, payload); err != nil {
             return nil
             }
-        str = hex.EncodeToString(buffer.Bytes())
-        fmt.Printf(str)
-        return buffer.Bytes()
+    // icmp
     } else if variables[2] == "icmp" {
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
@@ -265,11 +250,9 @@ func createPacket(variables ...string) []byte {
             eth, ip, icmp); err != nil {
             return nil
             }
-        str = hex.EncodeToString(buffer.Bytes())
-        fmt.Printf(str)
-        return buffer.Bytes()
     }
-    fmt.Println(str)
+    str = hex.EncodeToString(buffer.Bytes())
+    fmt.Printf(str)
     return buffer.Bytes()
 }
 
