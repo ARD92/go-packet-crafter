@@ -11,10 +11,12 @@ Caveats:
 2. only single port can be used. Range of ports is not supported
 3. write to pcap is not yet supported
 4. vlanids, GTP, VXLAN and GRE headers not yet supported
+5. Does not support IPv6
 
 Usage: ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -sport <port/[port-port]> -dport <port/[port-port]>
        ./go-packet-gen -src <IP> -dst <IP> -t icmp 
-       ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -l <label/[label1 label2 label3]> -sport <port> -dport <port> -m <sourcemac> -M <destMAC> -p "test123" -w
+       ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -l <label/[label1 label2 label3]> -sport <port> -dport <port> -m <sourcemac> -M <destMAC> -p "test123" -w test.pcap
+
 Documentation: gopacket documentation exists @ https://pkg.go.dev/github.com/google/gopacket@v1.1.19/layers#TCP
 */
 
@@ -27,11 +29,28 @@ import (
     "encoding/hex"
     "github.com/google/gopacket"
     "github.com/google/gopacket/layers"
+    "github.com/google/gopacket/pcap"
+    //"github.com/google/gopacket/pcapgo"
     "github.com/akamensky/argparse"
     "os"
     "strconv"
+    "time"
     )
 
+
+var str string
+var sipaddr []byte
+var dipaddr []byte
+var protocol layers.IPProtocol
+var mpls *layers.MPLS
+var payload gopacket.SerializableLayer
+var buffer gopacket.SerializeBuffer
+var icmp *layers.ICMPv4
+var tcp *layers.TCP
+var udp *layers.UDP
+var smac []byte
+var dmac []byte
+var eth *layers.Ethernet 
 
 /* Function to create MPLS layer */
 func Mpls (label uint32, stack bool) *layers.MPLS {
@@ -89,41 +108,29 @@ func Vxlan(){
 */
 
 func createPacket(variables ...string) []byte {
-    //fmt.Print(variables, " ")
+    fmt.Printf("TEST: Len is %v\n ",len(variables[5]))
     // variable declaration 
-    var sipaddr []byte
-    var dipaddr []byte
-    var protocol layers.IPProtocol
-    var mpls *layers.MPLS
-    var payload gopacket.SerializableLayer
-    var buffer gopacket.SerializeBuffer
-    var str string
-    var icmp *layers.ICMPv4
-    var tcp *layers.TCP
-    var udp *layers.UDP
-    var smac []byte
-    var dmac []byte
-    var eth *layers.Ethernet 
-
     // sourceIP [0]
-    if variables[0] != " " {
+    if len(variables[0]) != 0 {
         sipaddr = net.ParseIP(variables[0])
     } else {
         panic("source IP missing\n")
     }
     // destinationIp [1]
-    if variables[1] != " " {
+    if len(variables[1]) != 0 {
         dipaddr = net.ParseIP(variables[1])
     } else {
         panic("destination IP missing \n")
     }
     // type [2] icmp, tcp or udp 
-    if variables[2] != " " {
+    if len(variables[2]) != 0 {
         if variables[2] == "icmp" {
+            fmt.Println("TEST: Type ICMP\n")
             icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(8), Id: 1, Seq: 1}
             //protocol = layers.IPProtocolICMPv4 // fix this!!
         } else if variables[2] == "udp" {
-            if variables[3] != " " && variables[4] != " " {
+            fmt.Println("TEST: Type UDP\n")
+            if len(variables[3]) != 0 && len(variables[4]) != 0 {
                 source,_ := strconv.Atoi(variables[3])
                 dest,_ := strconv.Atoi(variables[4])
                 udp = &layers.UDP{SrcPort: layers.UDPPort(source), DstPort: layers.UDPPort(dest)}
@@ -132,7 +139,8 @@ func createPacket(variables ...string) []byte {
                 panic("source port and destination port missing. please add accordingly\n")
             }
         } else if variables[2] == "tcp" {
-            if variables[3] != " " && variables[4] != " " {
+            fmt.Println("TEST: Type TCP received\n")
+            if len(variables[3]) != 0 && len(variables[4]) != 0 {
                 source,_ := strconv.Atoi(variables[3])
                 dest,_ := strconv.Atoi(variables[4])
                 tcp = &layers.TCP{SrcPort: layers.TCPPort(source), DstPort: layers.TCPPort(dest),
@@ -147,19 +155,22 @@ func createPacket(variables ...string) []byte {
     }
     // optional params begin here onwards 
     // mpls [5] 
-    if variables[5] != " " {
+    if len(variables[5]) != 0 {
+        fmt.Println("TEST: MPLS label received so MPLS packet will be formed\n")
         val,_ := strconv.Atoi(variables[5])
         mpls = Mpls(uint32(val), true)
     } 
     // payload [6]
-    if variables[6] != " " {
+    if len(variables[6]) != 0 {
+        fmt.Println("TEST: Payload received\n")
         payload = gopacket.Payload(variables[6])
     } else {
+        fmt.Println("TEST: default payload used\n")
         payload = gopacket.Payload("gopayload")
     }
     
     // smac[7]
-    if variables[7] != " " {
+    if len(variables[7]) != 0 {
         smac,_ = net.ParseMAC(variables[7])
     } else {
         smac,_ = net.ParseMAC("ff:ff:ff:ff:ff:ff")
@@ -167,14 +178,13 @@ func createPacket(variables ...string) []byte {
     }
 
     // dmac[8]
-    if variables[8] != " " {
+    if len(variables[8]) != 0 {
         dmac,_ = net.ParseMAC(variables[8])
     } else {
         dmac,_ = net.ParseMAC("ff:ff:ff:ff:ff:ff")
         fmt.Println("using broadcast address for MAC")
     }
 
-    //pcap [9] generate pcap if argument exists
 
     // create Packet
     /* 
@@ -188,7 +198,8 @@ func createPacket(variables ...string) []byte {
     */ 
 
     // mpls and udp
-    if variables[5] != " " && variables[2] == "udp" {
+    if len(variables[5]) != 0 && variables[2] == "udp" {
+        fmt.Println("TEST: Entered MPLS AND UDP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         fmt.Println(ip)
@@ -202,7 +213,8 @@ func createPacket(variables ...string) []byte {
             return nil
             }
     // mpls and tcp
-    } else if variables[5] != " " && variables[2] == "tcp"{
+    } else if len(variables[5]) != 0 && variables[2] == "tcp"{
+        fmt.Println("TEST: Entered MPLS and TCP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -215,7 +227,8 @@ func createPacket(variables ...string) []byte {
             return nil
             }
     // no mpls and udp 
-    } else if variables[5] == " " && variables[2] == "udp" {
+    } else if len(variables[5]) == 0 && variables[2] == "udp" {
+        fmt.Println("TEST: ENTERED no mpls and udp")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -228,7 +241,8 @@ func createPacket(variables ...string) []byte {
             return nil
             }
     // no mpls and tcp
-    } else if variables[5] == " " && variables[2] == "tcp"{
+    } else if len(variables[5]) == 0 && variables[2] == "tcp"{
+        fmt.Println("TEST: Entered no MPLS and TCP")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -237,11 +251,12 @@ func createPacket(variables ...string) []byte {
         buffer = gopacket.NewSerializeBuffer()
         if err := gopacket.SerializeLayers(buffer,
             gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
-            eth, mpls, ip, tcp, payload); err != nil {
+            eth, ip, tcp, payload); err != nil {
             return nil
             }
     // icmp
     } else if variables[2] == "icmp" {
+        fmt.Println("TEST: ICMP packet\n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         buffer = gopacket.NewSerializeBuffer()
@@ -252,9 +267,45 @@ func createPacket(variables ...string) []byte {
             }
     }
     str = hex.EncodeToString(buffer.Bytes())
-    fmt.Printf(str)
+    if len(str) != 0 {
+        fmt.Println("\n============= Hex packet crafted ===========\n")
+        fmt.Printf(str)
+        fmt.Println("=================================================\n")
+    }
     return buffer.Bytes()
 }
+
+ //save to pcap 
+/*func PcapCreate(name string, pkt []byte) {
+    var snapshot_len uint32  = 65535
+    file,err := os.Create(name+".pcap")
+    if err != nil {
+        panic("unable to open file")
+    }
+    defer file.Close()
+    pkgsrc := gopacket.NewPacketSource(pkt, layers.LayerTypeEthernet)
+    pcapw := pcapgo.NewWriter(file)
+    pcapw.WriteFileHeader(snapshot_len, layers.LinkTypeEthernet)
+    pcapw.WritePacket(pkgsrc.CaptureInfo(), pkt)
+}*/
+
+//Send crafted packets over wire
+
+func PacketSend(device string, packet []byte, promiscuous bool) {
+    var snapshot_len int32 = 65535
+    //var promiscuous bool = false
+    var timeout = 30 * time.Second
+    handle, err := pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
+    if err != nil {panic(err) }
+    defer handle.Close()
+
+    // Send raw bytes over wire
+    err = handle.WritePacketData(packet)
+    if err != nil {
+        panic(err)
+    }
+}
+
 
 func main() {
     //Argparser
@@ -266,9 +317,12 @@ func main() {
     ptype := parser.String("t", "type", &argparse.Options{Required: true, Help:"Type of packet. Can be tcp, udp, icmp. if icmp then dont mention source and dest ports."})
     mpls := parser.String("l", "mpls", &argparse.Options{Required: false, Help:"Mpls labels. Can be single integer or a list such as [1000 2000] . In this case the first label would be bottom of the stack" })
     payload := parser.String("p", "payload", &argparse.Options{Required: false, Help:"optional payload string. if not provided, will use 'payload' as the payload in the packet" })
-    smac := parser.String("m", "smac", &argparse.Options{Required: false, Help:"MAC address" })
-    dmac := parser.String("M", "dmac", &argparse.Options{Required: false, Help:"MAC address" })
-    pcap := parser.String("w", "write", &argparse.Options{Required: false, Help: "Write the crafted packet to pcap file"})
+    smac := parser.String("m", "smac", &argparse.Options{Required: false, Help:"source MAC address" })
+    dmac := parser.String("M", "dmac", &argparse.Options{Required: false, Help:"destination MAC address" })
+    //pcap := parser.String("w", "write", &argparse.Options{Required: false, Help: "Write the crafted packet to pcap file"})
+    intf := parser.String("i", "interface", &argparse.Options{Required: false, Help: "Interface over which we need to send the created packets"})
+    promiscuous := parser.String("P", "promiscuous", &argparse.Options{Required: false, Help: "Promiscuous mode for the interface which is a boolean value. use true to enable and false to disable. default is false if not mentioned"})
+
     err := parser.Parse(os.Args)
     if err != nil {
         fmt.Print(parser.Usage(err))
@@ -278,6 +332,20 @@ func main() {
         Arglist in order: [Sourceip, DestinationIp, Type, Sourceport, Destinationport, mpls, payload, pcap] 
         */ 
         //pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *pcap)
-        createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *pcap)
+        fmt.Printf("TEST: Interface type %s\n", *intf)
+        pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
+        //if pcap != nil {
+        //    fmt.Println("\n======= Storing into pcap file ===========\n")
+        //    PcapCreate(*pcap, pkt)
+        //}
+        // send packets over interface
+        if len(*intf) != 0 {
+            fmt.Println("TEST: SENDING PACKETS\n")
+            if *promiscuous =="true" {
+                PacketSend(*intf, pkt, true)
+            } else {
+                PacketSend(*intf, pkt, false)
+            }
+        } 
     }
 }
