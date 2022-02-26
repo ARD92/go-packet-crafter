@@ -1,23 +1,13 @@
 /* Packet crafter based on gopacket 
 Author: Aravind Prabhakar
 Version: 1.0
-Description: simple go based packet generator for testing flows/firewall filters for vNFs. It can also
-             be used to craft packets for other testing purposes. This is not to test performance which 
-             can be enhanced later. 
+Description: simple go based packet generator for testing flows/firewall filters for vNF/cNFs. It can also
+             be used to craft packets for other testing purposes. This is not intended to test performance. 
 
-
-Caveats:
-1. only single label can be used. Multiple label stack is not supported
-2. only single port can be used. Range of ports is not supported
-3. write to pcap is not yet supported
-4. vlanids, GTP, VXLAN and GRE headers not yet supported
-5. Does not support IPv6
 
 Usage: ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -sport <port/[port-port]> -dport <port/[port-port]>
        ./go-packet-gen -src <IP> -dst <IP> -t icmp 
        ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -l <label/[label1 label2 label3]> -sport <port> -dport <port> -m <sourcemac> -M <destMAC> -p "test123" -w test.pcap
-
-Documentation: gopacket documentation exists @ https://pkg.go.dev/github.com/google/gopacket@v1.1.19/layers#TCP
 */
 
 
@@ -33,6 +23,7 @@ import (
     //"github.com/google/gopacket/pcapgo"
     "github.com/akamensky/argparse"
     "os"
+    "strings"
     "strconv"
     "time"
     )
@@ -51,6 +42,8 @@ var udp *layers.UDP
 var smac []byte
 var dmac []byte
 var eth *layers.Ethernet 
+var pkt []byte
+var pktarray [] []byte
 
 /* Function to create MPLS layer */
 func Mpls (label uint32, stack bool) *layers.MPLS {
@@ -125,7 +118,7 @@ func createPacket(variables ...string) []byte {
     if len(variables[2]) != 0 {
         if variables[2] == "icmp" {
             icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(8), Id: 1, Seq: 1}
-            //protocol = layers.IPProtocolICMPv4 // fix this!!
+            protocol = layers.IPProtocolICMPv4
         } else if variables[2] == "udp" {
             if len(variables[3]) != 0 && len(variables[4]) != 0 {
                 source,_ := strconv.Atoi(variables[3])
@@ -323,8 +316,40 @@ func main() {
         /*  
         Pass the below arguments to craft the packet 
         Arglist in order: [Sourceip, DestinationIp, Type, Sourceport, Destinationport, mpls, payload, pcap] 
-        */ 
-        pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
+        */
+        if strings.Contains(*sport, ",") && strings.Contains(*dport, ",") {
+            fmt.Println("TEST: ENTERED HERE!")
+            result := strings.Split(*sport, ",")
+            result1 := strings.Split(*dport, ",")
+            starts,_ := strconv.Atoi(result[0])
+            ends,_ := strconv.Atoi(result[1])
+            startd,_ := strconv.Atoi(result1[0])
+            endd,_ := strconv.Atoi(result1[1])
+            for i:=starts;i<ends;i++ {
+                for j :=startd;j<endd;j++ {
+                    pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac)
+                    pktarray = append(pktarray, pkt)
+                }
+            }
+        } else if strings.Contains(*sport, ",") && !strings.Contains(*dport, ",") {
+            result := strings.Split(*sport, ",")
+            starts,_ := strconv.Atoi(result[0])
+            ends,_ := strconv.Atoi(result[1])
+            for i:=starts;i<ends;i++ {
+                pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac)
+                pktarray = append(pktarray, pkt)
+            }
+        } else if !strings.Contains(*sport, ",") && strings.Contains(*dport, ",") {
+            result1 := strings.Split(*dport, ",")
+            startd,_ := strconv.Atoi(result1[0])
+            endd,_ := strconv.Atoi(result1[1])
+            for j :=startd;j<endd;j++ {
+                pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac)
+                pktarray = append(pktarray, pkt)
+            }            
+        } else {     
+            pkt = createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
+        }
 
         //if pcap != nil {
         //    fmt.Println("\n======= Storing into pcap file ===========\n")
@@ -345,7 +370,13 @@ func main() {
                 end := 1.0
                 for i:=start ; i<end; i+=interval {
                     fmt.Printf("sending packet!!! %f\n",i)
-                    PacketSend(*intf, pkt, true)
+                    if len(pktarray) != 0 {
+                        for _,send := range(pktarray) {
+                            PacketSend(*intf, send, true)
+                        }
+                    } else {
+                        PacketSend(*intf, pkt, true)
+                    }
                 }
             } else {
                 numpkt,_ := strconv.Atoi(*numpkts)
