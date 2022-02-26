@@ -108,7 +108,6 @@ func Vxlan(){
 */
 
 func createPacket(variables ...string) []byte {
-    fmt.Printf("TEST: Len is %v\n ",len(variables[5]))
     // variable declaration 
     // sourceIP [0]
     if len(variables[0]) != 0 {
@@ -125,11 +124,9 @@ func createPacket(variables ...string) []byte {
     // type [2] icmp, tcp or udp 
     if len(variables[2]) != 0 {
         if variables[2] == "icmp" {
-            fmt.Println("TEST: Type ICMP\n")
             icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(8), Id: 1, Seq: 1}
             //protocol = layers.IPProtocolICMPv4 // fix this!!
         } else if variables[2] == "udp" {
-            fmt.Println("TEST: Type UDP\n")
             if len(variables[3]) != 0 && len(variables[4]) != 0 {
                 source,_ := strconv.Atoi(variables[3])
                 dest,_ := strconv.Atoi(variables[4])
@@ -139,7 +136,6 @@ func createPacket(variables ...string) []byte {
                 panic("source port and destination port missing. please add accordingly\n")
             }
         } else if variables[2] == "tcp" {
-            fmt.Println("TEST: Type TCP received\n")
             if len(variables[3]) != 0 && len(variables[4]) != 0 {
                 source,_ := strconv.Atoi(variables[3])
                 dest,_ := strconv.Atoi(variables[4])
@@ -156,16 +152,13 @@ func createPacket(variables ...string) []byte {
     // optional params begin here onwards 
     // mpls [5] 
     if len(variables[5]) != 0 {
-        fmt.Println("TEST: MPLS label received so MPLS packet will be formed\n")
         val,_ := strconv.Atoi(variables[5])
         mpls = Mpls(uint32(val), true)
     } 
     // payload [6]
     if len(variables[6]) != 0 {
-        fmt.Println("TEST: Payload received\n")
         payload = gopacket.Payload(variables[6])
     } else {
-        fmt.Println("TEST: default payload used\n")
         payload = gopacket.Payload("gopayload")
     }
     
@@ -199,7 +192,6 @@ func createPacket(variables ...string) []byte {
 
     // mpls and udp
     if len(variables[5]) != 0 && variables[2] == "udp" {
-        fmt.Println("TEST: Entered MPLS AND UDP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         fmt.Println(ip)
@@ -214,7 +206,6 @@ func createPacket(variables ...string) []byte {
             }
     // mpls and tcp
     } else if len(variables[5]) != 0 && variables[2] == "tcp"{
-        fmt.Println("TEST: Entered MPLS and TCP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -228,7 +219,6 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and udp 
     } else if len(variables[5]) == 0 && variables[2] == "udp" {
-        fmt.Println("TEST: ENTERED no mpls and udp")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -242,7 +232,6 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and tcp
     } else if len(variables[5]) == 0 && variables[2] == "tcp"{
-        fmt.Println("TEST: Entered no MPLS and TCP")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -256,7 +245,6 @@ func createPacket(variables ...string) []byte {
             }
     // icmp
     } else if variables[2] == "icmp" {
-        fmt.Println("TEST: ICMP packet\n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         buffer = gopacket.NewSerializeBuffer()
@@ -265,12 +253,6 @@ func createPacket(variables ...string) []byte {
             eth, ip, icmp); err != nil {
             return nil
             }
-    }
-    str = hex.EncodeToString(buffer.Bytes())
-    if len(str) != 0 {
-        fmt.Println("\n============= Hex packet crafted ===========\n")
-        fmt.Printf(str)
-        fmt.Println("=================================================\n")
     }
     return buffer.Bytes()
 }
@@ -290,7 +272,6 @@ func createPacket(variables ...string) []byte {
 }*/
 
 //Send crafted packets over wire
-
 func PacketSend(device string, packet []byte, promiscuous bool) {
     var snapshot_len int32 = 65535
     //var promiscuous bool = false
@@ -306,7 +287,17 @@ func PacketSend(device string, packet []byte, promiscuous bool) {
     }
 }
 
+// Print hex packet
+func PrintHex(packet []byte) {
+    str = hex.EncodeToString(buffer.Bytes())
+    if len(str) != 0 {
+        fmt.Println("\n============= Hex packet crafted ===========\n")
+        fmt.Printf(str)
+        fmt.Println("\n=================================================\n")
+    }
+}
 
+// Main function
 func main() {
     //Argparser
     parser := argparse.NewParser("Required-args", "\n=================\ngo packet crafter\n=================")
@@ -322,6 +313,7 @@ func main() {
     //pcap := parser.String("w", "write", &argparse.Options{Required: false, Help: "Write the crafted packet to pcap file"})
     intf := parser.String("i", "interface", &argparse.Options{Required: false, Help: "Interface over which we need to send the created packets"})
     promiscuous := parser.String("P", "promiscuous", &argparse.Options{Required: false, Help: "Promiscuous mode for the interface which is a boolean value. use true to enable and false to disable. default is false if not mentioned"})
+    hex := parser.String("H", "hexprint", &argparse.Options{Required: false, Help: "Print HEX data of the created packet. you can then use any decoder like wireshark or online tools"})    
 
     err := parser.Parse(os.Args)
     if err != nil {
@@ -332,15 +324,19 @@ func main() {
         Arglist in order: [Sourceip, DestinationIp, Type, Sourceport, Destinationport, mpls, payload, pcap] 
         */ 
         //pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *pcap)
-        fmt.Printf("TEST: Interface type %s\n", *intf)
         pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
         //if pcap != nil {
         //    fmt.Println("\n======= Storing into pcap file ===========\n")
         //    PcapCreate(*pcap, pkt)
         //}
+
+        //print Hex packet 
+        if len(*hex) != 0 && *hex == "true" {
+            PrintHex(pkt)
+        }
+
         // send packets over interface
         if len(*intf) != 0 {
-            fmt.Println("TEST: SENDING PACKETS\n")
             if *promiscuous =="true" {
                 PacketSend(*intf, pkt, true)
             } else {
