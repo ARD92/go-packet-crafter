@@ -312,9 +312,10 @@ func main() {
     dmac := parser.String("M", "dmac", &argparse.Options{Required: false, Help:"destination MAC address" })
     //pcap := parser.String("w", "write", &argparse.Options{Required: false, Help: "Write the crafted packet to pcap file"})
     intf := parser.String("i", "interface", &argparse.Options{Required: false, Help: "Interface over which we need to send the created packets"})
-    promiscuous := parser.String("P", "promiscuous", &argparse.Options{Required: false, Help: "Promiscuous mode for the interface which is a boolean value. use true to enable and false to disable. default is false if not mentioned"})
-    hex := parser.String("H", "hexprint", &argparse.Options{Required: false, Help: "Print HEX data of the created packet. you can then use any decoder like wireshark or online tools"})    
-
+    promiscuous := parser.String("P", "promiscuous", &argparse.Options{Required: false, Help: "Optioinal param to enable Promiscuous mode for the interface which is a boolean value. use true to enable and false to disable. default is false if not mentioned"})
+    hex := parser.String("H", "hexprint", &argparse.Options{Required: false, Help: "Optional param to print HEX data of the created packet. you can then use any decoder like wireshark or online tools"})    
+    numpkts:= parser.String("n", "numpkt", &argparse.Options{Required: false, Help: "Number of packets to send over wire"})
+  
     err := parser.Parse(os.Args)
     if err != nil {
         fmt.Print(parser.Usage(err))
@@ -323,8 +324,8 @@ func main() {
         Pass the below arguments to craft the packet 
         Arglist in order: [Sourceip, DestinationIp, Type, Sourceport, Destinationport, mpls, payload, pcap] 
         */ 
-        //pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *pcap)
         pkt := createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
+
         //if pcap != nil {
         //    fmt.Println("\n======= Storing into pcap file ===========\n")
         //    PcapCreate(*pcap, pkt)
@@ -338,10 +339,24 @@ func main() {
         // send packets over interface
         if len(*intf) != 0 {
             if *promiscuous =="true" {
-                PacketSend(*intf, pkt, true)
+                numpkt,_ := strconv.Atoi(*numpkts)
+                interval := float64(1.0)/float64(numpkt)
+                start := 0.0
+                end := 1.0
+                for i:=start ; i<end; i+=interval {
+                    fmt.Printf("sending packet!!! %f\n",i)
+                    PacketSend(*intf, pkt, true)
+                }
             } else {
-                PacketSend(*intf, pkt, false)
-            }
+                numpkt,_ := strconv.Atoi(*numpkts)
+                interval := float64(1.0)/float64(numpkt)
+                start := 0.0
+                end := 1.0
+                for i:=start ; i<end; i+=interval {
+                    fmt.Printf("sending packet!!! %f\n",i)
+                    PacketSend(*intf, pkt, false)
+                }
+            }   
         } 
     }
 }
