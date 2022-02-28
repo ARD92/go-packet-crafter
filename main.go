@@ -20,7 +20,6 @@ import (
     "github.com/google/gopacket"
     "github.com/google/gopacket/layers"
     "github.com/google/gopacket/pcap"
-    //"github.com/google/gopacket/pcapgo"
     "github.com/akamensky/argparse"
     "os"
     "strings"
@@ -43,7 +42,6 @@ var smac []byte
 var dmac []byte
 var eth *layers.Ethernet 
 var pkt []byte
-var mplsarray [] *layers.MPLS
 var pktarray [] []byte
 
 /* Function to create MPLS layer */
@@ -75,6 +73,7 @@ func Gtp() {
     }
 }
 
+// TCP stack
 func Tcp() {
     tcp := &layers.TCP {
         SrcPort, DstPort 
@@ -103,6 +102,7 @@ func Vxlan(){
 
 func createPacket(variables ...string) []byte {
     // variable declaration 
+    var mplsarray [] *layers.MPLS
     // sourceIP [0]
     if len(variables[0]) != 0 {
         sipaddr = net.ParseIP(variables[0])
@@ -151,8 +151,10 @@ func createPacket(variables ...string) []byte {
             for i:=0; i<=len(resultm)-1;i++ {
                 val,_ := strconv.Atoi(resultm[i])
                 if i == 0 {
+                    // mpls bottom of stack
                     mpls = Mpls(uint32(val), true)
                 } else {
+                    // mpls not bottom of stack
                     mpls = Mpls(uint32(val), false)
                 }
                 mplsarray = append(mplsarray, mpls)
@@ -201,7 +203,6 @@ func createPacket(variables ...string) []byte {
 
     // mpls and udp
     if len(variables[5]) != 0 && variables[2] == "udp" {
-        fmt.Println("TEST: ENTERED MPLS AND UDP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         buffer = gopacket.NewSerializeBuffer()
@@ -279,7 +280,6 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and tcp
     } else if len(variables[5]) == 0 && variables[2] == "tcp"{
-        fmt.Println("TEST: ENTERED NO MPLS AND TCP")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -298,7 +298,7 @@ func createPacket(variables ...string) []byte {
         buffer = gopacket.NewSerializeBuffer()
         if err := gopacket.SerializeLayers(buffer,
             gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
-            eth, ip, icmp); err != nil {
+            eth, ip, icmp, payload); err != nil {
             return nil
             }
     }
@@ -351,10 +351,10 @@ func main() {
     parser := argparse.NewParser("Required-args", "\n=================\ngo packet crafter\n=================")
     sip := parser.String("S", "sip", &argparse.Options{Required: true, Help: "Source Ip address to use as outer IP header"})
     dip := parser.String("D", "dip", &argparse.Options{Required: true, Help: "Destination IP address to use as outer IP header"})
-    sport := parser.String("s", "sport", &argparse.Options{Required: false, Help:"Source Port in outer IP header. Can be single integer or a range [1000-2000]"})
-    dport := parser.String("d", "dport", &argparse.Options{Required: false, Help:"Destination Port in outer IP header. Can be single integer or a range [1000-2000]"})
+    sport := parser.String("s", "sport", &argparse.Options{Required: false, Help:"Source Port in outer IP header. Can be single integer or a range 1000-2000"})
+    dport := parser.String("d", "dport", &argparse.Options{Required: false, Help:"Destination Port in outer IP header. Can be single integer or a range 1000-2000"})
     ptype := parser.String("t", "type", &argparse.Options{Required: true, Help:"Type of packet. Can be tcp, udp, icmp. if icmp then dont mention source and dest ports."})
-    mpls := parser.String("l", "mpls", &argparse.Options{Required: false, Help:"Mpls labels. Can be single integer or a list such as [1000 2000] . In this case the first label would be bottom of the stack" })
+    mpls := parser.String("l", "mpls", &argparse.Options{Required: false, Help:"Mpls labels. Can be single integer or a label stack such as 1000,2000,3000 . In this case the first label would be bottom of the stack" })
     payload := parser.String("p", "payload", &argparse.Options{Required: false, Help:"optional payload string. if not provided, will use 'payload' as the payload in the packet" })
     smac := parser.String("m", "smac", &argparse.Options{Required: false, Help:"source MAC address" })
     dmac := parser.String("M", "dmac", &argparse.Options{Required: false, Help:"destination MAC address" })
@@ -379,8 +379,8 @@ func main() {
             ends,_ := strconv.Atoi(result[1])
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
-            for i:=starts;i<ends;i++ {
-                for j :=startd;j<endd;j++ {
+            for i:=starts;i<=ends;i++ {
+                for j :=startd;j<=endd;j++ {
                     pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac)
                     pktarray = append(pktarray, pkt)
                 }
@@ -389,7 +389,7 @@ func main() {
             result := strings.Split(*sport, "-")
             starts,_ := strconv.Atoi(result[0])
             ends,_ := strconv.Atoi(result[1])
-            for i:=starts;i<ends;i++ {
+            for i:=starts;i<=ends;i++ {
                 pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac)
                 pktarray = append(pktarray, pkt)
             }
@@ -397,7 +397,7 @@ func main() {
             result1 := strings.Split(*dport, "-")
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
-            for j :=startd;j<endd;j++ {
+            for j :=startd;j<=endd;j++ {
                 pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac)
                 pktarray = append(pktarray, pkt)
             }            
@@ -410,11 +410,6 @@ func main() {
         //    PcapCreate(*pcap, pkt)
         //}
 
-        //print Hex packet 
-        if len(*hex) != 0 && *hex == "true" {
-            PrintHex(pkt)
-        }
-
         // send packets over interface
         if len(*intf) != 0 {
             if *promiscuous =="true" {
@@ -423,13 +418,18 @@ func main() {
                 start := 0.0
                 end := 1.0
                 for i:=start ; i<end; i+=interval {
-                    fmt.Printf("sending packet!!! %f\n",i)
                     if len(pktarray) != 0 {
-                        for _,send := range(pktarray) {
-                            PacketSend(*intf, send, true)
+                        for p:=0 ; p<=len(pktarray)-1; p++ {
+                            PacketSend(*intf, pktarray[p], true)
+                            if len(*hex) != 0 && *hex == "true" {
+                                PrintHex(pktarray[p])
+                            }
                         }
                     } else {
                         PacketSend(*intf, pkt, true)
+                        if len(*hex) != 0 && *hex == "true" {
+                            PrintHex(pkt)
+                        }
                     }
                 }
             } else {
@@ -438,10 +438,21 @@ func main() {
                 start := 0.0
                 end := 1.0
                 for i:=start ; i<end; i+=interval {
-                    fmt.Printf("sending packet!!! %f\n",i)
-                    PacketSend(*intf, pkt, false)
+                    if len(pktarray) != 0 {
+                        for p:=0; p<=len(pktarray)-1;p++ {
+                            PacketSend(*intf, pktarray[p], false)
+                            if len(*hex) != 0 && *hex == "true" {
+                               PrintHex(pktarray[p])
+                            }
+                        }
+                    } else {
+                        PacketSend(*intf, pkt, true)
+                        if len(*hex) != 0 && *hex == "true" {
+                            PrintHex(pkt)
+                        }
+                    }
                 }
             }   
-        } 
+        }
     }
 }
