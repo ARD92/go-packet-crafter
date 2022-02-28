@@ -5,7 +5,7 @@ Description: simple go based packet generator for testing flows/firewall filters
              be used to craft packets for other testing purposes. This is not intended to test performance. 
 
 
-Usage: ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -sport <port/[port-port]> -dport <port/[port-port]>
+Usage: ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -sport <port/portStart,portEnd> -dport <port/portStart,portEnd>
        ./go-packet-gen -src <IP> -dst <IP> -t icmp 
        ./go-packet-gen -src <IP> -dst <IP> -t <tcp/udp> -l <label/[label1 label2 label3]> -sport <port> -dport <port> -m <sourcemac> -M <destMAC> -p "test123" -w test.pcap
 */
@@ -43,6 +43,7 @@ var smac []byte
 var dmac []byte
 var eth *layers.Ethernet 
 var pkt []byte
+var mplsarray [] *layers.MPLS
 var pktarray [] []byte
 
 /* Function to create MPLS layer */
@@ -145,8 +146,23 @@ func createPacket(variables ...string) []byte {
     // optional params begin here onwards 
     // mpls [5] 
     if len(variables[5]) != 0 {
-        val,_ := strconv.Atoi(variables[5])
-        mpls = Mpls(uint32(val), true)
+        if strings.Contains(variables[5], ",") {
+            resultm:=strings.Split(variables[5], ",")
+            for i:=0; i<=len(resultm)-1;i++ {
+                val,_ := strconv.Atoi(resultm[i])
+                if i == 0 {
+                    mpls = Mpls(uint32(val), true)
+                } else {
+                    mpls = Mpls(uint32(val), false)
+                }
+                mplsarray = append(mplsarray, mpls)
+            }
+        // fix else condition. Single label fails. 
+        } else {
+            val,_ := strconv.Atoi(variables[5])
+            mpls = Mpls(uint32(val), true)
+            mplsarray = append(mplsarray, mpls)
+        }
     } 
     // payload [6]
     if len(variables[6]) != 0 {
@@ -185,30 +201,68 @@ func createPacket(variables ...string) []byte {
 
     // mpls and udp
     if len(variables[5]) != 0 && variables[2] == "udp" {
+        fmt.Println("TEST: ENTERED MPLS AND UDP")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
-        fmt.Println(ip)
+        buffer = gopacket.NewSerializeBuffer()
+        if err := payload.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
-        buffer = gopacket.NewSerializeBuffer()
-        if err := gopacket.SerializeLayers(buffer,
-            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
-            eth, mpls, ip, udp, payload); err != nil {
-            return nil
+        if err := udp.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        if err := ip.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        // Handle stack of mpls labels 
+        for final:=0; final<=len(mplsarray)-1; final++ {
+            mpl := mplsarray[final]
+            if err := mpl.SerializeTo(buffer, 
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                    return nil
+                }
+            }
+        if err := eth.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                return nil
             }
     // mpls and tcp
     } else if len(variables[5]) != 0 && variables[2] == "tcp"{
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+        buffer = gopacket.NewSerializeBuffer()
+        if err := payload.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
-        buffer = gopacket.NewSerializeBuffer()
-        if err := gopacket.SerializeLayers(buffer,
-            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
-            eth, mpls, ip, tcp, payload); err != nil {
-            return nil
+        if err := tcp.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        if err := ip.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        // Handle stack of mpls labels 
+        for final:=0; final<=len(mplsarray)-1; final++ {
+            mpl := mplsarray[final]
+            if err := mpl.SerializeTo(buffer, 
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                    return nil
+                }
+            }
+        if err := eth.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                return nil
             }
     // no mpls and udp 
     } else if len(variables[5]) == 0 && variables[2] == "udp" {
@@ -225,6 +279,7 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and tcp
     } else if len(variables[5]) == 0 && variables[2] == "tcp"{
+        fmt.Println("TEST: ENTERED NO MPLS AND TCP")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -317,10 +372,9 @@ func main() {
         Pass the below arguments to craft the packet 
         Arglist in order: [Sourceip, DestinationIp, Type, Sourceport, Destinationport, mpls, payload, pcap] 
         */
-        if strings.Contains(*sport, ",") && strings.Contains(*dport, ",") {
-            fmt.Println("TEST: ENTERED HERE!")
-            result := strings.Split(*sport, ",")
-            result1 := strings.Split(*dport, ",")
+        if strings.Contains(*sport, "-") && strings.Contains(*dport, "-") {
+            result := strings.Split(*sport, "-")
+            result1 := strings.Split(*dport, "-")
             starts,_ := strconv.Atoi(result[0])
             ends,_ := strconv.Atoi(result[1])
             startd,_ := strconv.Atoi(result1[0])
@@ -331,23 +385,23 @@ func main() {
                     pktarray = append(pktarray, pkt)
                 }
             }
-        } else if strings.Contains(*sport, ",") && !strings.Contains(*dport, ",") {
-            result := strings.Split(*sport, ",")
+        } else if strings.Contains(*sport, "-") && !strings.Contains(*dport, "-") {
+            result := strings.Split(*sport, "-")
             starts,_ := strconv.Atoi(result[0])
             ends,_ := strconv.Atoi(result[1])
             for i:=starts;i<ends;i++ {
                 pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac)
                 pktarray = append(pktarray, pkt)
             }
-        } else if !strings.Contains(*sport, ",") && strings.Contains(*dport, ",") {
-            result1 := strings.Split(*dport, ",")
+        } else if !strings.Contains(*sport, "-") && strings.Contains(*dport, "-") {
+            result1 := strings.Split(*dport, "-")
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
             for j :=startd;j<endd;j++ {
                 pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac)
                 pktarray = append(pktarray, pkt)
             }            
-        } else {     
+        } else {
             pkt = createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac)
         }
 
