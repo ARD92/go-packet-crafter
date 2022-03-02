@@ -50,24 +50,24 @@ func Mpls (label uint32, stack bool) *layers.MPLS {
     return mpls
 }
 
-/*
-func Gtp() {
+/* WIP. Function to create GTP-U packets */
+func Gtp(teid uint32) *layers.GTPv1U {
     gtp := &layers.GTPv1U {
-        Version: 
-        ProtocolType:
-        Reserved: 
-        ExtensionHeaderFlag:
-        SequenceNumberFlag:
-        NPDUFlag:
-        MessageType:
-        MessageLength:
-        TEID:
-        SequenceNumber:
-        NPDU:
-        GTPExtensionHeaders: 
+        Version: 1,
+        ProtocolType: 1,
+        //Reserved: 
+        //ExtensionHeaderFlag:
+        //SequenceNumberFlag:
+        //NPDUFlag:
+        //MessageType:
+        //MessageLength:
+        TEID: teid,
+       // SequenceNumber:
+       //NPDU:
+       // GTPExtensionHeaders: 
     }
+    return gtp
 }
-*/
 
 func Vxlan(vni uint32, vlanflag bool) *layers.VXLAN {
     vxlan := &layers.VXLAN {
@@ -81,10 +81,27 @@ func Vxlan(vni uint32, vlanflag bool) *layers.VXLAN {
     return vxlan
 }
 
+/* Hexstring to Byte conversion */
+func HexToByte(HexPkt string) []byte {
+    hexpkt, err := hex.DecodeString(HexPkt)
+    if err != nil {
+        panic(err)
+    }
+    return hexpkt
+}
+
 func createPacket(variables ...string) []byte {
     // variable declaration 
     var mplsarray [] *layers.MPLS
     var vxlan *layers.VXLAN
+
+    // Inner packet variables
+    var ieth *layers.Ethernet
+    var iip *layers.IPv4
+    var itcp *layers.TCP
+    var iudp *layers.UDP
+
+    // Begin parsing
     // sourceIP [0]
     if len(variables[0]) != 0 {
         sipaddr = net.ParseIP(variables[0])
@@ -178,6 +195,68 @@ func createPacket(variables ...string) []byte {
         vxlan = Vxlan(uint32(val), false)
     }
 
+
+    //innerhex[10]
+    if len(variables[10]) != 0 {
+        hexb := HexToByte(variables[10])
+        npkt := gopacket.NewPacket(hexb, layers.LayerTypeEthernet, gopacket.Default)
+        fmt.Println(" --> Inner packet payload received \n ")
+        buffer = gopacket.NewSerializeBuffer()
+
+        // Decode payload also
+        //applicationLayer := npkt.ApplicationLayer()
+        //if applicationLayer != nil {
+        //    if err := applicationLayer.SerializeTo(buffer,
+        //        gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+        //            return nil
+        //    }
+        //}
+
+        ipLayer := npkt.Layer(layers.LayerTypeIPv4)
+        if ipLayer != nil {
+            iip,_ = ipLayer.(*layers.IPv4)
+        }
+    
+        udpLayer := npkt.Layer(layers.LayerTypeUDP)
+        if udpLayer != nil {
+            iudp, _ = udpLayer.(*layers.UDP)
+            if err := iudp.SetNetworkLayerForChecksum(iip); err != nil {
+                return nil
+            }
+            if err := iudp.SerializeTo(buffer,
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                    return nil
+            }
+        }
+
+        tcpLayer := npkt.Layer(layers.LayerTypeTCP)
+        if tcpLayer != nil {
+            itcp, _ = tcpLayer.(*layers.TCP)
+            if err := itcp.SetNetworkLayerForChecksum(iip); err != nil {
+                return nil
+            }
+            if err := itcp.SerializeTo(buffer,
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                    return nil
+            }
+        }
+
+        if err := iip.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+        }
+
+
+        ethLayer := npkt.Layer(layers.LayerTypeEthernet)
+        if  ethLayer != nil {
+            ieth,_ = ethLayer.(*layers.Ethernet)
+            if err := ieth.SerializeTo(buffer,
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        }
+    }
+
     // create Packet
     /* 
     if UDP: eth, ip, udp, payload
@@ -186,19 +265,25 @@ func createPacket(variables ...string) []byte {
     if mpls: eth, mpls, ip, udp/tcp, payload
     if dual mpls stacked: eth, mpls, mpls, ip, udp, payload
     if gre: eth, ip, gre, inner ip
-    if vxlan: 
+    if vxlan: eth, ip, udp (dport 4789), vxlan, eth, ip, udp, payload
     */ 
 
     // mpls and udp
     if len(variables[5]) != 0 && variables[2] == "udp" {
-        fmt.Println(" ======== MPLS packet with udp transport =========== \n")
+        fmt.Println(" --> MPLS packet with udp transport \n")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
-        buffer = gopacket.NewSerializeBuffer()
+        if len(variables[10]) == 0 {
+            buffer = gopacket.NewSerializeBuffer()
+            //if err := payload.SerializeTo(buffer,
+            //    gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+            //    panic(err)
+            //}
+        }
         if err := payload.SerializeTo(buffer,
             gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
                 panic(err)
-            }
+        }
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
@@ -224,14 +309,16 @@ func createPacket(variables ...string) []byte {
             }
     // mpls and tcp
     } else if len(variables[5]) != 0 && variables[2] == "tcp"{
-        fmt.Println(" ======== MPLS packet with TCP =========== \n")
+        fmt.Println(" --> MPLS packet with TCP \n")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
-        buffer = gopacket.NewSerializeBuffer()
-        if err := payload.SerializeTo(buffer,
-            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+        if len(variables[10]) == 0 {
+            buffer = gopacket.NewSerializeBuffer()
+            if err := payload.SerializeTo(buffer,
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
                 panic(err)
             }
+        }
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
@@ -257,7 +344,7 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and udp 
     } else if len(variables[5]) == 0 && variables[2] == "udp" && len(variables[9]) == 0 {
-        fmt.Println(" ======== IP packet with udp =========== \n")
+        fmt.Println(" --> IP packet with udp \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -271,7 +358,7 @@ func createPacket(variables ...string) []byte {
             }
     // no mpls and tcp
     } else if len(variables[5]) == 0 && variables[2] == "tcp"{
-        fmt.Println(" ======== IP packet with TCP ports =========== \n")
+        fmt.Println(" --> IP packet with TCP ports \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
@@ -285,7 +372,7 @@ func createPacket(variables ...string) []byte {
             }
     // icmp
     } else if variables[2] == "icmp" {
-        fmt.Println(" ======== ICMP packet  =========== \n")
+        fmt.Println(" --> ICMP packet \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
         buffer = gopacket.NewSerializeBuffer()
@@ -294,21 +381,36 @@ func createPacket(variables ...string) []byte {
             eth, ip, icmp, payload); err != nil {
             return nil
             }
-    // Vxlan
+    // Vxlan (The hardcoding needs to be modified)
     } else if len(variables[9]) !=0 && variables[2] == "udp" {
-        fmt.Printf("=============== VXLAN Packet %s==================\n ",variables[9])
+        fmt.Println(" --> VXLAN Packet \n ")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ineth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
         ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
-        inip := &layers.IPv4{Version: 4, DstIP: net.ParseIP("192.168.1.1"), SrcIP: net.ParseIP("192.168.2.1"), Protocol: protocol}
+        if len(variables[10]) == 0 {
+            buffer = gopacket.NewSerializeBuffer()
+            if err := payload.SerializeTo(buffer,
+                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        }
+        if err := vxlan.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
-        buffer = gopacket.NewSerializeBuffer()
-        if err := gopacket.SerializeLayers(buffer,
-            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
-            eth, ip, udp, vxlan, ineth, inip); err != nil {
-            return nil
+        if err := udp.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        if err := ip.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                panic(err)
+            }
+        if err := eth.SerializeTo(buffer,
+            gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                return nil
             }
     }
     return buffer.Bytes()
@@ -381,7 +483,7 @@ func main() {
     smac := parser.String("m", "smac", &argparse.Options{Required: false, Help:"source MAC address" })
     dmac := parser.String("M", "dmac", &argparse.Options{Required: false, Help:"destination MAC address" })
     vxlan := parser.String("v", "vni", &argparse.Options{Required: false, Help:"vxlan vni id" })
-    //inhex := parser.String("x", "inpkt" &argparse.Options{Required: false, Help: "Inner packet in hex format which can be used" })
+    inhex := parser.String("x", "inpkt", &argparse.Options{Required: false, Help: "Inner packet in hex format which can be used" })
     //pcap := parser.String("w", "write", &argparse.Options{Required: false, Help: "Write the crafted packet to pcap file"})
     intf := parser.String("i", "interface", &argparse.Options{Required: false, Help: "Interface over which we need to send the created packets"})
     promiscuous := parser.String("P", "promiscuous", &argparse.Options{Required: false, Help: "Optioinal param to enable Promiscuous mode for the interface which is a boolean value. use true to enable and false to disable. default is false if not mentioned"})
@@ -405,7 +507,7 @@ func main() {
             endd,_ := strconv.Atoi(result1[1])
             for i:=starts;i<=ends;i++ {
                 for j :=startd;j<=endd;j++ {
-                    pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan)
+                    pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex)
                     pktarray = append(pktarray, pkt)
                 }
             }
@@ -414,7 +516,7 @@ func main() {
             starts,_ := strconv.Atoi(result[0])
             ends,_ := strconv.Atoi(result[1])
             for i:=starts;i<=ends;i++ {
-                pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac, *vxlan)
+                pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex)
                 pktarray = append(pktarray, pkt)
             }
         } else if !strings.Contains(*sport, "-") && strings.Contains(*dport, "-") {
@@ -422,12 +524,11 @@ func main() {
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
             for j :=startd;j<=endd;j++ {
-                pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan)
+                pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex)
                 pktarray = append(pktarray, pkt)
             }            
         } else {
-            pkt = createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *vxlan)
-            fmt.Println(pkt)
+            pkt = createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex)
         }
 
         //if pcap != nil {
@@ -438,7 +539,7 @@ func main() {
         // send packets over interface
         if len(*intf) != 0 {
             if *promiscuous =="true" {
-                fmt.Printf("Sending packet over %s in promiscuous mode....\n ",*intf)
+                fmt.Println(" --> Sending packet in promiscuous mode \n ")
                 numpkt,_ := strconv.Atoi(*numpkts)
                 interval := float64(1.0)/float64(numpkt)
                 start := 0.0
@@ -459,7 +560,7 @@ func main() {
                     }
                 }
             } else {
-                fmt.Printf("Sending packet over %s....\n ",*intf)
+                fmt.Println(" --> Sending packet\n ")
                 numpkt,_ := strconv.Atoi(*numpkts)
                 interval := float64(1.0)/float64(numpkt)
                 start := 0.0
