@@ -40,6 +40,10 @@ Arguments:
                      'payload' as the payload in the packet
   -m  --smac         source MAC address
   -M  --dmac         destination MAC address
+  -v  --vni          vxlan vni id
+  -x  --inpkt        Inner packet in hex format which can be used
+  -T  --teid         TEID of GTPv1u packet. For the inner packet which is
+                     tunneld, use inhex vals
   -i  --interface    Interface over which we need to send the created packets
   -P  --promiscuous  Optioinal param to enable Promiscuous mode for the
                      interface which is a boolean value. use true to enable and
@@ -49,6 +53,7 @@ Arguments:
                      tools
   -n  --numpkt       Number of packets to send over wire
 ```
+
 * -s/-d or --sport/--dport can be used with a single value or a range. 
     -s 1000 or -s 1000-2000. 
     -d 1000 or -d 1000-2000
@@ -67,27 +72,58 @@ Arguments:
 
 #### Generate a UDP packet and send over interface eth1
 ```
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000 -d 1000 
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000-1002 -d 1000-1002 
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000 -d 1000 
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000-1002 -d 1000-1002 
 ```
 
 #### Generate an ICMP packet and send over interface eth1
 ```
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t icmp -m 02:42:AC:13:00:03 -i eth1 
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t icmp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 
 ```
 
 #### Generate a TCP/UDP packet with MPLS label[s]
 ```
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000-1002 -d 1000-1002 -l 1000
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000-1002 -d 1000-1002 -l 1000,1001,1002,1003
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000-1002 -d 1000-1002 -l 1000
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000-1002 -d 1000-1002 -l 1000,1001,1002,1003
 ```
 
 #### Use an interface in promiscuous mode
 ```
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000-1002 -d 1000-1002 -l 1000 -P true
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000-1002 -d 1000-1002 -l 1000 -P true
 ```
 
 #### Send a number of packets over the interface
 ```
-./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -i eth1 -s 1000-1002 -d 1000-1002 -l 1000 -n 100
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t udp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000-1002 -d 1000-1002 -l 1000 -n 100
+```
+
+#### Print hex format 
+```
+/go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t tcp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000 -d 1000 -H true
+```
+
+#### Create a VXLAN packet 
+This has to be done in 2 steps. 
+1. Create the inner packet and print the hex string 
+```
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t tcp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000 -d 1000 -H true
+```
+This will create a packet and print out a hex string such as `01ad0123fafb0242ac130003080045000031000000000006629eac130001ac13000203e803e80000000000000000500200002b410000676f7061796c6f6164`
+
+2. Use the created inner packet in hex format and feed it as input to the vxlan packet. The destination port for vxlan has to be 4789 else wireshark doesnt decode as expected
+```
+./go-packet-crafter -S 192.19.0.1 -D 192.19.0.2 -t udp -m 03:41:AC:13:00:02 -M 03:41:AC:13:00:01 -i eth1 -s 1000 -d 4789 -v 1000 -H true -x 01ad0123fafb0242ac130003080045000031000000000006629eac130001ac13000203e803e80000000000000000500200002b410000676f7061796c6f6164
+```
+
+#### Create a GTP-U packet 
+This will also be done in similar process as the VXLAN. i.e. 2 step process. Create the inner packet first and feed it as input to the GTP packet
+
+```
+./go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t tcp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000 -d 1000 -H true
+```
+This will create a packet and print out a hex string such as `01ad0123fafb0242ac130003080045000031000000000006629eac130001ac13000203e803e80000000000000000500200002b410000676f7061796c6f6164`
+
+2. Use the created inner packet in hex format and feed it as input to the GTP packet. use the `-T` flag for TEID value. Also note that destination port is 2152.
+```
+./go-packet-crafter -S 192.19.0.1 -D 192.19.0.2 -t udp -m 03:41:AC:13:00:02 -M 03:41:AC:13:00:01 -i eth1 -s 2152 -d 2152 -T 1000 -H true -x 01ad0123fafb0242ac130003080045000031000000000006629eac130001ac13000203e803e80000000000000000500200002b410000676f7061796c6f6164
 ```
