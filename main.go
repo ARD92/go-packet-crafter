@@ -54,19 +54,26 @@ func Mpls (label uint32, stack bool) *layers.MPLS {
 }
 
 
-/* Funciton to create GTP header */
+/* Funciton to create GTP header
+if sequence number is used, then the internal TCP/UDP packet may
+not get decoded as expected on wireshark if the sequence numbers
+do not add up. Call the function accordingly when using the tool
+By default it is marked as false. By doing so a GTP packet with TPDU
+session would look like 
+ETH <--IP<-- UDP(2152)<--GTP<--IP<--TCP/UDP<--payload
+ */
 func Gtp(version uint8, teid uint32, msgtype uint8, msglength uint16) *layers.GTPv1U {
     gtp := &layers.GTPv1U {
         Version: 1,
         ProtocolType: 1,
         Reserved: 0, 
         ExtensionHeaderFlag: false,
-        SequenceNumberFlag: true,
+        SequenceNumberFlag: false,
         NPDUFlag: false,
         MessageType: msgtype,
         MessageLength: msglength,
         TEID: teid,
-        SequenceNumber: 0x28db,
+        //SequenceNumber: 0x28db,
         //NPDU:
     }
     return gtp
