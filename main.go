@@ -41,6 +41,43 @@ var (
      pktarray [] []byte
     )
 
+/* Struct to parse IPv4 ranges */
+type OctetsIpv4 struct {
+    octet1 []string
+    octet2 []string
+    octet3 []string
+    octet4 []string
+}
+
+/* Parse IPv4 address in case a range is provided.
+the range of octet is split by -
+example: 1-10.1-5.2-5.10-30
+will return 4 octets. [1-10],[1-5],[2-5],[10-30]
+*/
+func parseIpv4Range(ipv4address) {
+    var octipv4 OctetsIpv4
+    octets := make([][]string,0)
+    var ip[] string
+    asplit := strings.Split(a,".")
+    for i:=0; i<=len(asplit)-1; i++ {
+        if strings.Contains(asplit[i],"-") {
+            ip := strings.Split(asplit[i],"-")
+            octets = append(octets,ip)
+            switch i {
+            case 0:
+                octets.octet1 = ip
+            case 1:
+                octets.octet2 = ip
+            case 2:
+                octets.octet3 = ip
+            case 3:
+                octets.octet4 = ip
+        } else {
+            continue
+        }
+    }
+    return octets
+}
 
 /* Function to create MPLS layer */
 func Mpls (label uint32, stack bool) *layers.MPLS {
