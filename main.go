@@ -41,7 +41,11 @@ var (
      pktarray [] []byte
     )
 
-/* Struct to parse IPv4 ranges */
+/* Struct to parse IPv4 ranges 
+This will store if there is a single range or a range
+if octet is single value then [value] would be stored.
+if octet is a range then [startValue endValue] would be stored
+*/
 type OctetsIpv4 struct {
     octet1 []string
     octet2 []string
@@ -52,32 +56,194 @@ type OctetsIpv4 struct {
 /* Parse IPv4 address in case a range is provided.
 the range of octet is split by -
 example: 1-10.1-5.2-5.10-30
-will return 4 octets. [1-10],[1-5],[2-5],[10-30]
+will return 4 octets. [1-10],[1-5],[2-5],[10-30] into struct OctetsIpv4
+further it will create a list of all the combinations of Ipaddresses.
+[1.1.2.10,1.1.2.11,.....10.5.5.30]
 */
-func parseIpv4Range(ipv4address) {
+func parseIpv4Range(ipv4address string) []string {
     var octipv4 OctetsIpv4
-    octets := make([][]string,0)
-    var ip[] string
-    asplit := strings.Split(a,".")
+    var iplist[] string
+    asplit := strings.Split(ipv4address,".")
     for i:=0; i<=len(asplit)-1; i++ {
         if strings.Contains(asplit[i],"-") {
             ip := strings.Split(asplit[i],"-")
-            octets = append(octets,ip)
             switch i {
             case 0:
-                octets.octet1 = ip
+                octipv4.octet1 = ip
             case 1:
-                octets.octet2 = ip
+                octipv4.octet2 = ip
             case 2:
-                octets.octet3 = ip
+                octipv4.octet3 = ip
             case 3:
-                octets.octet4 = ip
+                octipv4.octet4 = ip
+            }
         } else {
-            continue
+            switch i {
+            case 0:
+                octipv4.octet1 = []string{asplit[i]}
+            case 1:
+                octipv4.octet2 = []string{asplit[i]}
+            case 2:
+                octipv4.octet3 = []string{asplit[i]}
+            case 3:
+                octipv4.octet4 =[]string{asplit[i]}
+            }
+        }
+    } 
+    if len(octipv4.octet1) != 1 {
+        starti,_ := strconv.Atoi(octipv4.octet1[0])
+        endi,_ := strconv.Atoi(octipv4.octet1[1])
+        for i:=starti; i<=endi; i++ {
+            map1 := strconv.Itoa(i)
+            if len(octipv4.octet2) != 1 {
+                startj,_ := strconv.Atoi(octipv4.octet2[0])
+                endj,_ := strconv.Atoi(octipv4.octet2[1]) 
+                for j:=startj ;j<=endj; j++ {
+                    map2 := strconv.Itoa(j)
+                    if len(octipv4.octet3) != 1 {
+                        startk,_ := strconv.Atoi(octipv4.octet3[0])
+                        endk,_ := strconv.Atoi(octipv4.octet3[1])
+                        for k:=startk;k<=endk;k++ {
+                            map3 := strconv.Itoa(k)
+                            if len(octipv4.octet4) != 1 {
+                                startl,_ := strconv.Atoi(octipv4.octet4[0])
+                                endl,_ := strconv.Atoi(octipv4.octet4[1])
+                                for l:=startl; l<=endl; l++ {
+                                    map4 := strconv.Itoa(l)
+                                    iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                                } 
+                            } else {
+                                map4 := octipv4.octet4[0]
+                                iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                            }
+                        }
+                    } else {
+                        map3 := octipv4.octet3[0]
+                        if len(octipv4.octet4) != 1 {
+                            startl,_ := strconv.Atoi(octipv4.octet4[0])
+                            endl,_ := strconv.Atoi(octipv4.octet4[1])
+                            for l:=startl; l<=endl; l++ {
+                                map4 := strconv.Itoa(l)
+                                iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                            } 
+                        } else {
+                            map4 := octipv4.octet4[0]
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        }
+                    }
+                }
+            } else {
+                map2 := octipv4.octet2[0]
+                if len(octipv4.octet3) != 1 {
+                    startk,_ := strconv.Atoi(octipv4.octet3[0])
+                    endk,_ := strconv.Atoi(octipv4.octet3[1])
+                    for k:=startk; k<=endk;k++ {
+                        map3 := strconv.Itoa(k)
+                        if len(octipv4.octet4) != 1 {
+                            startl,_ := strconv.Atoi(octipv4.octet4[0])
+                            endl,_ := strconv.Atoi(octipv4.octet4[1])
+                            for l:=startl; l<=endl; l++ {
+                                map4 := strconv.Itoa(l)
+                                iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                            } 
+                        } else {
+                            map4 := octipv4.octet4[0]
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        }
+                    }
+                } else {
+                    map3 := octipv4.octet3[0]
+                    if len(octipv4.octet4) != 1 {
+                        startl,_ := strconv.Atoi(octipv4.octet4[0])
+                        endl,_ := strconv.Atoi(octipv4.octet4[1])
+                        for l:=startl; l<=endl; l++ {
+                            map4 := strconv.Itoa(l)
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        } 
+                    } else {
+                        map4 := octipv4.octet4[0]
+                        iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                    }
+                }
+            }
+        }
+    } else {
+        map1 := octipv4.octet1[0]
+        if len(octipv4.octet2) != 1 {
+            startj,_ := strconv.Atoi(octipv4.octet2[0])
+            endj,_ := strconv.Atoi(octipv4.octet2[1]) 
+            for j:=startj ;j<=endj; j++ {
+                map2 := strconv.Itoa(j)
+                if len(octipv4.octet3) != 1 {
+                    startk,_ := strconv.Atoi(octipv4.octet3[0])
+                    endk,_ := strconv.Atoi(octipv4.octet3[1])
+                    for k:=startk; k<=endk;k++ {
+                        map3 := strconv.Itoa(k)
+                        if len(octipv4.octet4) != 1 {
+                            startl,_ := strconv.Atoi(octipv4.octet4[0])
+                            endl,_ := strconv.Atoi(octipv4.octet4[1])
+                            for l:=startl; l<=endl; l++ {
+                                map4 := strconv.Itoa(l)
+                                iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                            } 
+                        } else {
+                            map4 := octipv4.octet4[0]
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        }
+                    }
+                } else {
+                    map3 := octipv4.octet3[0]
+                    if len(octipv4.octet4) != 1 {
+                        startl,_ := strconv.Atoi(octipv4.octet4[0])
+                        endl,_ := strconv.Atoi(octipv4.octet4[1])
+                        for l:=startl; l<=endl; l++ {
+                            map4 := strconv.Itoa(l)
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        } 
+                    } else {
+                        map4 := octipv4.octet4[0]
+                        iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                    }
+                }
+            }
+        } else {
+            map2 := octipv4.octet2[0]
+            if len(octipv4.octet3) != 1 {
+                startk,_ := strconv.Atoi(octipv4.octet3[0])
+                endk,_ := strconv.Atoi(octipv4.octet3[1])
+                for k:=startk; k<=endk;k++ {
+                    map3 := strconv.Itoa(k)
+                    if len(octipv4.octet4) != 1 {
+                        startl,_ := strconv.Atoi(octipv4.octet4[0])
+                        endl,_ := strconv.Atoi(octipv4.octet4[1])
+                        for l:=startl; l<=endl; l++ {
+                            map4 := strconv.Itoa(l)
+                            iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                        } 
+                    } else {
+                        map4 := octipv4.octet4[0]
+                        iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                    }
+                }
+            } else {
+                map3 := octipv4.octet3[0]
+                if len(octipv4.octet4) != 1 {
+                    startl,_ := strconv.Atoi(octipv4.octet4[0])
+                    endl,_ := strconv.Atoi(octipv4.octet4[1])
+                    for l:=startl; l<=endl; l++ {
+                        map4 := strconv.Itoa(l)
+                        iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                    } 
+                } else {
+                    map4 := octipv4.octet4[0]
+                    iplist = append(iplist, map1+"."+map2+"."+map3+"."+map4)
+                }
+            }
         }
     }
-    return octets
+    return iplist
 }
+
 
 /* Function to create MPLS layer */
 func Mpls (label uint32, stack bool) *layers.MPLS {
@@ -638,30 +804,55 @@ func main() {
             ends,_ := strconv.Atoi(result[1])
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
-            for i:=starts;i<=ends;i++ {
-                for j :=startd;j<=endd;j++ {
-                    pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
-                    pktarray = append(pktarray, pkt)
+            sourceips := parseIpv4Range(*sip)
+            destips := parseIpv4Range(*dip)
+            for s:=0; s<=len(sourceips)-1 ; s++ {
+                for d:=0; d<=len(destips)-1; d++ {
+                    for i:=starts;i<=ends;i++ {
+                        for j :=startd;j<=endd;j++ {
+                            pkt = createPacket(sourceips[s], destips[d], *ptype, strconv.Itoa(i), strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
+                            pktarray = append(pktarray, pkt)
+                        }
+                    }
                 }
             }
         } else if strings.Contains(*sport, "-") && !strings.Contains(*dport, "-") {
             result := strings.Split(*sport, "-")
             starts,_ := strconv.Atoi(result[0])
             ends,_ := strconv.Atoi(result[1])
-            for i:=starts;i<=ends;i++ {
-                pkt = createPacket(*sip, *dip, *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
-                pktarray = append(pktarray, pkt)
+            sourceips := parseIpv4Range(*sip)
+            destips := parseIpv4Range(*dip)
+            for s:=0; s<=len(sourceips)-1 ; s++ {
+                for d:=0; d<=len(destips)-1; d++ {
+                    for i:=starts;i<=ends;i++ {
+                        pkt = createPacket(sourceips[s], destips[d], *ptype, strconv.Itoa(i), *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
+                        pktarray = append(pktarray, pkt)
+                    }
+                }
             }
         } else if !strings.Contains(*sport, "-") && strings.Contains(*dport, "-") {
             result1 := strings.Split(*dport, "-")
             startd,_ := strconv.Atoi(result1[0])
             endd,_ := strconv.Atoi(result1[1])
-            for j :=startd;j<=endd;j++ {
-                pkt = createPacket(*sip, *dip, *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
-                pktarray = append(pktarray, pkt)
+            sourceips := parseIpv4Range(*sip)
+            destips := parseIpv4Range(*dip)
+            for s:=0; s<=len(sourceips)-1 ; s++ {
+                for d:=0; d<=len(destips)-1; d++ {    
+                    for j :=startd;j<=endd;j++ {
+                        pkt = createPacket(sourceips[s], destips[d], *ptype, *sport, strconv.Itoa(j), *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
+                        pktarray = append(pktarray, pkt)
+                    }
+                }
             }            
         } else {
-            pkt = createPacket(*sip, *dip, *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
+            sourceips := parseIpv4Range(*sip)
+            destips := parseIpv4Range(*dip)
+            for s:=0; s<=len(sourceips)-1 ; s++ {
+                for d:=0; d<=len(destips)-1; d++ {
+                    pkt = createPacket(sourceips[s], destips[d], *ptype, *sport, *dport, *mpls, *payload, *smac, *dmac, *vxlan, *inhex, *teid)
+                    pktarray = append(pktarray, pkt)
+                }
+            }
         }
 
         //if pcap != nil {
