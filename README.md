@@ -109,6 +109,15 @@ Arguments:
 /go-packet-crafter -S 172.19.0.1 -D 172.19.0.2 -t tcp -m 02:42:AC:13:00:03 -M 01:AD:01:23:fa:fb -i eth1 -s 1000 -d 1000 -H true
 ```
 
+#### Create a packet with range of IP addresses and send out of interface 
+IP addresses can be in ranges. i.e. each octet you can define the range that is needed. The range is split with a "-" followed by "." following IP addressing schemes.
+```
+1-3.2-3.4.3-5
+```
+In the above, There would be packets created with the below IPs
+[1.2.4.3, 1.2.4.4, 1.2.4.5, 1.3.4.3, 1.3.4.4, 1.3.4.5, 2.2.4.3....... 3.3.4.5]
+
+
 #### Create a VXLAN packet 
 This has to be done in 2 steps. 
 1. Create the inner packet and print the hex string 
