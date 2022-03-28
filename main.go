@@ -500,11 +500,15 @@ func createPacket(variables ...string) []byte {
         ethLayer := npkt.Layer(layers.LayerTypeEthernet)
         if  ethLayer != nil {
             ieth,_ = ethLayer.(*layers.Ethernet)
-            if err := ieth.SerializeTo(buffer,
-                gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
-                panic(err)
+            // For GTP Eth layer should be stripped off. Else packet will be malformed. Only L3 and above gets tunneled
+            // For L2 tunneling such as VXLAN (var9), eth layer should get added
+            if len(variables[9])!=0 {
+                if err := ieth.SerializeTo(buffer,
+                    gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true }); err != nil {
+                    panic(err)
+                }
+                fmt.Printf("|-> Inner MAC source mac: %s, Dest Mac %s \n",ieth.SrcMAC, ieth.DstMAC)
             }
-            fmt.Printf("|-> Inner MAC source mac: %s, Dest Mac %s \n",ieth.SrcMAC, ieth.DstMAC)
         }
         innerlength = int64(len(buffer.Bytes()))
         fmt.Printf("|-> Length: %d \n",innerlength)
