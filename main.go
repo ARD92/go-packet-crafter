@@ -536,7 +536,7 @@ func createPacket(variables ...string) []byte {
     if len(variables[5]) != 0 && variables[2] == "udp" {
         fmt.Println(" --> MPLS packet with udp transport \n")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL:64}
         if len(variables[10]) == 0 {
             buffer = gopacket.NewSerializeBuffer()
             if err := payload.SerializeTo(buffer,
@@ -575,7 +575,7 @@ func createPacket(variables ...string) []byte {
     } else if len(variables[5]) != 0 && variables[2] == "tcp"{
         fmt.Println(" --> MPLS packet with TCP \n")
         eth = &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x8847}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         if len(variables[10]) == 0 {
             buffer = gopacket.NewSerializeBuffer()
             if err := payload.SerializeTo(buffer,
@@ -610,7 +610,7 @@ func createPacket(variables ...string) []byte {
     } else if len(variables[5]) == 0 && variables[2] == "udp" && len(variables[9]) == 0 && len(variables[11]) == 0 {
         fmt.Println(" --> IP packet with udp \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
@@ -624,7 +624,7 @@ func createPacket(variables ...string) []byte {
     } else if len(variables[5]) == 0 && variables[2] == "tcp"{
         fmt.Println(" --> IP packet with TCP ports \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
             return nil
         }
@@ -638,7 +638,7 @@ func createPacket(variables ...string) []byte {
     } else if variables[2] == "icmp" {
         fmt.Println(" --> ICMP packet \n")
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         buffer = gopacket.NewSerializeBuffer()
         if err := gopacket.SerializeLayers(buffer,
             gopacket.SerializeOptions {ComputeChecksums: true, FixLengths: true },
@@ -650,7 +650,7 @@ func createPacket(variables ...string) []byte {
         fmt.Println("\n--> VXLAN Packet")
         fmt.Printf("|-> VNI:  %s\n", variables[9])
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         if len(variables[10]) == 0 {
             buffer = gopacket.NewSerializeBuffer()
             if err := payload.SerializeTo(buffer,
@@ -682,7 +682,7 @@ func createPacket(variables ...string) []byte {
         fmt.Printf("\n--> GTP Packet \n")
         fmt.Printf("|-> TEID: %s \n", variables[11])
         eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x0800}
-        ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol}
+	ip := &layers.IPv4{Version: 4, DstIP: dipaddr, SrcIP: sipaddr, Protocol: protocol, TTL: 64}
         if len(variables[10]) == 0 {
             buffer = gopacket.NewSerializeBuffer()
             if err := payload.SerializeTo(buffer,
