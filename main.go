@@ -356,7 +356,7 @@ func createV6Packet(variables ...string) []byte {
 
 	// smac[6]
 	if len(variables[6]) != 0 {
-		smac, _ = net.ParseMAC(variables[7])
+		smac, _ = net.ParseMAC(variables[6])
 	} else {
 		smac, _ = net.ParseMAC("ff:ff:ff:ff:ff:ff")
 		fmt.Println("using broadcast address for Source MAC")
@@ -364,7 +364,7 @@ func createV6Packet(variables ...string) []byte {
 
 	// dmac[7]
 	if len(variables[7]) != 0 {
-		dmac, _ = net.ParseMAC(variables[8])
+		dmac, _ = net.ParseMAC(variables[7])
 	} else {
 		dmac, _ = net.ParseMAC("ff:ff:ff:ff:ff:ff")
 		fmt.Println("using broadcast address for Dest MAC")
