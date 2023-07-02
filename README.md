@@ -59,6 +59,7 @@ Arguments:
                      you can then use any decoder like wireshark or online
                      tools
   -n  --numpkt       Number of packets to send over wire
+  -I  --iptype       IP type. ipv4 or ipv6
 ```
 
 * -s/-d or --sport/--dport can be used with a single value or a range. 
@@ -142,4 +143,11 @@ This will create a packet and print out a hex string such as `01ad0123fafb0242ac
 2. Use the created inner packet in hex format and feed it as input to the GTP packet. use the `-T` flag for TEID value. Also note that destination port is 2152.
 ```
 ./go-packet-crafter -S 192.19.0.1 -D 192.19.0.2 -t udp -m 03:41:AC:13:00:02 -M 03:41:AC:13:00:01 -i eth1 -s 2152 -d 2152 -T 1000 -H true -x 01ad0123fafb0242ac130003080045000031000000000006629eac130001ac13000203e803e80000000000000000500200002b410000676f7061796c6f6164
+``
+
+#### Create an IPv6 packet
+Currently there is a limit of single source IP and destionation IP. Range of IPaddresses within a subnet is WIP 
+
+```
+root@ubuntu:~/go-packet-crafter# ./go-packet-gen --smac 02:aa:01:40:01:00 --dmac 02:aa:01:10:02:01 -I ipv6 -i eth1 -t udp -S 3010:1122:1101:0100:0000:0C08:0A01:0001  -D 2001:db8:1111:2222:0078:0100:2000:0000 -s 1090 -d 80 -n 1000000
 ```
