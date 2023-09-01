@@ -32,6 +32,8 @@ var (
 	payload  gopacket.SerializableLayer
 	buffer   gopacket.SerializeBuffer
 	icmp     *layers.ICMPv4
+	icmp6	 *layers.ICMPv6
+	iecho	 *layers.ICMPv6Echo
 	tcp      *layers.TCP
 	udp      *layers.UDP
 	smac     []byte
@@ -332,10 +334,9 @@ func createV6Packet(variables ...string) []byte {
 		panic("destination IPv6 missing \n")
 	}
 	if len(variables[2]) != 0 {
-		if variables[2] == "icmp" {
-			fmt.Println("currently not supported. Needs enhancement")
-			//icmp = &layers.ICMPv6{TypeCode: layers.ICMPv6TypeCode(8)}
-			//protocol = layers.IPProtocolICMPv6
+		if variables[2] == "icmp6" {
+			icmp6 = &layers.ICMPv6{TypeCode: layers.CreateICMPv6TypeCode(layers.ICMPv6TypeEchoRequest, 0)}
+			iecho = &layers.ICMPv6Echo{Identifier: 35859, SeqNumber: 1}
 		} else if variables[2] == "udp" {
 			if len(variables[3]) != 0 && len(variables[4]) != 0 {
 				source, _ := strconv.Atoi(variables[3])
@@ -381,6 +382,19 @@ func createV6Packet(variables ...string) []byte {
 		if err := gopacket.SerializeLayers(buffer,
 			gopacket.SerializeOptions{ComputeChecksums: true, FixLengths: true},
 			eth, ip, udp, payload); err != nil {
+			return nil
+		}
+	} else if variables[2] == "icmp6" {
+		fmt.Println(" --> IP packet with icmp6 \n")
+		eth := &layers.Ethernet{SrcMAC: smac, DstMAC: dmac, EthernetType: 0x086DD}
+		ip := &layers.IPv6{Version: 6, DstIP: dipaddr, SrcIP: sipaddr, NextHeader: layers.IPProtocolICMPv6, HopLimit: 64}
+		if err := icmp6.SetNetworkLayerForChecksum(ip); err != nil {
+			return nil
+		}
+		buffer = gopacket.NewSerializeBuffer()
+		if err := gopacket.SerializeLayers(buffer,
+			gopacket.SerializeOptions{ComputeChecksums: true, FixLengths: true},
+			eth, ip, icmp6, iecho, payload); err != nil {
 			return nil
 		}
 	}
