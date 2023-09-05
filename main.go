@@ -32,8 +32,8 @@ var (
 	payload  gopacket.SerializableLayer
 	buffer   gopacket.SerializeBuffer
 	icmp     *layers.ICMPv4
-	icmp6	 *layers.ICMPv6
-	iecho	 *layers.ICMPv6Echo
+	icmp6    *layers.ICMPv6
+	iecho    *layers.ICMPv6Echo
 	tcp      *layers.TCP
 	udp      *layers.UDP
 	smac     []byte
@@ -439,7 +439,7 @@ func createPacket(variables ...string) []byte {
 	// type [2] icmp, tcp or udp
 	if len(variables[2]) != 0 {
 		if variables[2] == "icmp" {
-			icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(8), Id: 1, Seq: 1}
+			icmp = &layers.ICMPv4{TypeCode: layers.ICMPv4TypeCode(uint16(8) << 8), Id: 1, Seq: 1}
 			protocol = layers.IPProtocolICMPv4
 		} else if variables[2] == "udp" {
 			if len(variables[3]) != 0 && len(variables[4]) != 0 {
