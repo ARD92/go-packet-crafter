@@ -870,7 +870,7 @@ func main() {
 	dip := parser.String("D", "dip", &argparse.Options{Required: true, Help: "Destination IP address to use as outer IP header"})
 	sport := parser.String("s", "sport", &argparse.Options{Required: false, Help: "Source Port in outer IP header. Can be single integer or a range 1000-2000"})
 	dport := parser.String("d", "dport", &argparse.Options{Required: false, Help: "Destination Port in outer IP header. Can be single integer or a range 1000-2000"})
-	ptype := parser.String("t", "type", &argparse.Options{Required: true, Help: "Type of packet. Can be tcp, udp, icmp. if icmp then dont mention source and dest ports."})
+	ptype := parser.String("t", "type", &argparse.Options{Required: true, Help: "Type of packet. Can be tcp, udp, icmp, icmp6. if icmp(6) then dont mention source and dest ports."})
 	mpls := parser.String("l", "mpls", &argparse.Options{Required: false, Help: "Mpls labels. Can be single integer or a label stack such as 1000,2000,3000 . In this case the first label would be bottom of the stack"})
 	payload := parser.String("p", "payload", &argparse.Options{Required: false, Help: "optional payload string. if not provided, will use 'payload' as the payload in the packet"})
 	smac := parser.String("m", "smac", &argparse.Options{Required: false, Help: "source MAC address"})
